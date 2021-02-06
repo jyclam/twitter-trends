@@ -1,5 +1,27 @@
+import { useStream } from "./hooks/useStream";
+
 function App() {
-  return <div className="App">hello world</div>;
+  const { state, dispatch, ACTIONS } = useStream();
+
+  return (
+    <div className="App">
+      <button onClick={() => dispatch({ type: ACTIONS.SOCKET_CLOSE })}>
+        Close
+      </button>
+      <button onClick={() => dispatch({ type: ACTIONS.TOGGLE_STREAM })}>
+        Pause
+      </button>
+      <div className="display">
+        {state.tweets.map((tweet) => (
+          <ul key={tweet.timestamp}>
+            <li>authorId: {tweet.author_id}</li>
+            <li>timestamp: {tweet.timestamp}</li>
+            <li>tweet: {tweet.tweet}</li>
+          </ul>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default App;
