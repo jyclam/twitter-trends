@@ -1,7 +1,10 @@
+require("dotenv").config();
 const http = require("http");
+const https = require("https");
 const WebSocket = require("ws");
 const crypto = require("crypto");
 
+const data = require("./data");
 const PORT = 5000;
 
 const server = http.createServer();
@@ -34,45 +37,69 @@ server.on("upgrade", (req, socket) => {
 
 const wss = new WebSocket.Server({ server, clientTracking: true });
 
-let clientCounter = 0;
-
 wss.on("connection", function (ws, req) {
-  let fakeInterval;
+  console.log("new connection!");
 
-  ws.id = `client${clientCounter}`;
-  clientCounter++;
-
-  fakeInterval = streamFakeMessages(ws);
-
-  ws.on("message", function incoming(message) {
-    const msg = JSON.parse(message);
-
-    if (msg.cmd === "pause") {
-      // console.log("pausing interval: ", fakeInterval);
-      clearInterval(fakeInterval);
-    }
-    if (msg.cmd === "resume") {
-      fakeInterval = streamFakeMessages(ws);
-      // console.log("new interval:: ", fakeInterval);
-    }
-
-    console.log("received: ", message);
-  });
+  // catch up new client with existing data
+  ws.send(JSON.stringify({ tweets: data.data }));
+  ws.send(JSON.stringify({ users: data.includes.users }));
 });
 
 server.listen(PORT, () => {
   console.log(`Server running on port: ${PORT}`);
 });
 
-const fakeMessage = () => ({
-  author_id: Math.round(Math.random() * 10000000),
-  timestamp: new Date(),
-  tweet: "something",
+// api rate limit is 900/15 min
+const USER_TWEET_TIMELINE_QUERY_INTERVAL = 5000;
+
+const state = new Map();
+state.set("latestTweetId", "1358658587644596224");
+
+const getOptions = () => ({
+  hostname: "api.twitter.com",
+  port: 443,
+  path: `/2/users/44196397/tweets?user.fields=profile_image_url,verified&expansions=author_id&exclude=replies&since_id=${state.get(
+    "latestTweetId",
+  )}`,
+  headers: {
+    Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
+  },
 });
 
-const streamFakeMessages = (ws) => {
-  return setInterval(() => {
-    const msg = fakeMessage();
-    ws.send(JSON.stringify(msg));
-  }, 500);
+// setInterval(() => {
+//   https
+//     .get(getOptions(), handleResponse)
+//     .on("error", (err) => console.error(err));
+// }, USER_TWEET_TIMELINE_QUERY_INTERVAL);
+
+const handleResponse = (resp) => {
+  let data = "";
+
+  resp.on("data", (chunk) => {
+    data += chunk;
+  });
+
+  resp.on("end", () => {
+    const response = JSON.parse(data);
+    console.log(response);
+
+    if (response.data) {
+      state.set("latestTweetId", response.meta.newest_id);
+      console.log("sending tweets: ", response.data);
+      broadcastToAll(JSON.stringify({ tweets: response.data }));
+    }
+
+    if (response.includes && response.includes.users) {
+      console.log("sending users: ", response.includes.users);
+      broadcastToAll(JSON.stringify({ users: response.includes.users }));
+    }
+  });
 };
+
+function broadcastToAll(msg) {
+  wss.clients.forEach(function each(client) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(msg);
+    }
+  });
+}
