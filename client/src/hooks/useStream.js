@@ -2,31 +2,40 @@ import { useReducer, useEffect } from "react";
 const WebSocket = require("isomorphic-ws");
 
 const ACTIONS = {
-  UPDATE_STATE: "UPDATE_STATE",
+  UPDATE_TWEETS_STATE: "UPDATE_TWEETS_STATE",
+  UPDATE_USERS_STATE: "UPDATE_USERS_STATE",
   ERROR: "ERROR",
   SOCKET_OPENED: "SOCKET_OPENED",
   SOCKET_CLOSE: "SOCKET_CLOSE",
   SEND_MESSAGE: "SEND_MESSAGE",
-  TOGGLE_STREAM: "TOGGLE_STREAM",
 };
 
 const initialState = {
   tweets: [],
+  users: [],
   socket: null,
   streamMeta: { error: null, paused: false },
 };
 
 const reducer = (state, action) => {
+  console.log("logging state and action: ");
+  console.log({ state, action });
   if (action.type === ACTIONS.ERROR) {
     return {
       ...state,
       streamMeta: { ...state.streamMeta, error: action.payload.error },
     };
   }
-  if (action.type === ACTIONS.UPDATE_STATE) {
+  if (action.type === ACTIONS.UPDATE_TWEETS_STATE) {
     return {
       ...state,
-      tweets: [...state.tweets, action.payload],
+      tweets: [...state.tweets, ...action.payload],
+    };
+  }
+  if (action.type === ACTIONS.UPDATE_USERS_STATE) {
+    return {
+      ...state,
+      users: [...state.users, ...action.payload],
     };
   }
   if (action.type === ACTIONS.SOCKET_OPENED) {
@@ -48,19 +57,6 @@ const reducer = (state, action) => {
       ...state,
     };
   }
-  if (action.type === ACTIONS.TOGGLE_STREAM) {
-    if (state.streamMeta.paused) {
-      state.socket.send(JSON.stringify({ cmd: "resume" }));
-    } else {
-      state.socket.send(JSON.stringify({ cmd: "pause" }));
-    }
-
-    return {
-      ...state,
-      streamMeta: { paused: !state.streamMeta.paused },
-    };
-  }
-  console.log({ state, action });
   throw new Error("Unhandled action in useStream reducer");
 };
 
@@ -82,13 +78,23 @@ export const useStream = () => {
       console.log("disconnected");
     };
 
-    ws.onmessage = (data) => {
-      console.log(data.data);
+    ws.onmessage = (messageEvent) => {
+      const message = JSON.parse(messageEvent.data);
 
-      dispatch({
-        type: ACTIONS.UPDATE_STATE,
-        payload: JSON.parse(data.data),
-      });
+      console.log("message received!: ", message);
+      if (message.tweets) {
+        dispatch({
+          type: ACTIONS.UPDATE_TWEETS_STATE,
+          payload: message.tweets,
+        });
+      }
+
+      if (message.users) {
+        dispatch({
+          type: ACTIONS.UPDATE_USERS_STATE,
+          payload: message.users,
+        });
+      }
     };
 
     return () => ws.close();

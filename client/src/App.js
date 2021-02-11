@@ -16,7 +16,7 @@ function App() {
           <ul key={tweet.timestamp}>
             <li>authorId: {tweet.author_id}</li>
             <li>timestamp: {tweet.timestamp}</li>
-            <li>tweet: {tweet.tweet}</li>
+            <li>tweet: {tweet.text}</li>
           </ul>
         ))}
       </div>
