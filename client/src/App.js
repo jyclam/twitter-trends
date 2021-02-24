@@ -15,7 +15,7 @@ function App() {
         {state.tweets.map((tweet) => (
           <ul key={tweet.timestamp}>
             <li>authorId: {tweet.author_id}</li>
-            <li>timestamp: {tweet.timestamp}</li>
+            <li>timestamp: {tweet.created_at}</li>
             <li>tweet: {tweet.text}</li>
           </ul>
         ))}
