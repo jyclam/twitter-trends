@@ -3,17 +3,31 @@ const http = require("http");
 const https = require("https");
 const WebSocket = require("ws");
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 
-const { connect } = require("./db");
-const data = require("./data");
+const { connect, saveToDb } = require("./db");
+const { Tweet, TwitterUser, User } = require("./schema/index");
 
 const PORT = 5000;
 // api rate limit is 900/15 min
 const USER_TWEET_TIMELINE_QUERY_INTERVAL = 5000;
 
+const state = new Map();
+
 const start = async () => {
   try {
     await connect("mongodb://localhost:27017/twitter-trends");
+
+    mongoose.connection.once("open", () => {
+      console.log("db connected!");
+    });
+
+    Tweet.findOne({}, {}, { sort: { id: -1 } }, (err, doc) => {
+      doc
+        ? state.set("latestTweetId", doc.id)
+        : state.set("latestTweetId", "1357231313376456708"); // first elon tweet regarding doge
+      console.log("latest tweet id: ", state.get("latestTweetId"));
+    });
   } catch (err) {
     console.error("Error connecting to DB: ", err);
   }
@@ -53,31 +67,50 @@ const start = async () => {
       console.error(`Websocket with ${clientAddress} error: ${error}`);
     });
 
-    // catch up new client with existing data
-    ws.send(JSON.stringify({ tweets: data.data }));
-    ws.send(JSON.stringify({ users: data.includes.users }));
+    // query db and sedn to client on every ws connection
+    // setup cache once data layer becomes more complex
+    Tweet.find()
+      .sort({ created_at: -1 })
+      .limit(100)
+      .exec((err, tweets) => {
+        if (err) {
+          console.error("Error querying for Tweets.");
+          console.error(err);
+        }
+        console.log(`Sending ${tweets.length} tweets to ${clientAddress}`);
+        ws.send(JSON.stringify({ tweets }));
+      });
+
+    TwitterUser.find()
+      .limit(10)
+      .exec((err, users) => {
+        if (err) {
+          console.error("Error querying for TwitterUsers.");
+          console.error(err);
+        }
+        console.log(`Sending ${users.length} users to ${clientAddress}`);
+        ws.send(JSON.stringify({ users }));
+      });
   });
 
   server.listen(PORT, () => {
     console.log(`Server running on port: ${PORT}`);
   });
 
-  // setInterval(() => {
-  //   https
-  //     .get(getOptions(), (resp) => handleResponse(wss, resp))
-  //     .on("error", (err) => console.error(err));
-  // }, USER_TWEET_TIMELINE_QUERY_INTERVAL);
+  // poll twitter for new posts
+  setInterval(() => {
+    https
+      .get(getOptions(), (resp) => handleResponse(wss, resp))
+      .on("error", (err) => console.error(err));
+  }, USER_TWEET_TIMELINE_QUERY_INTERVAL);
 };
 
 start();
 
-const state = new Map();
-state.set("latestTweetId", "1358658587644596224");
-
 const getOptions = () => ({
   hostname: "api.twitter.com",
   port: 443,
-  path: `/2/users/44196397/tweets?user.fields=profile_image_url,verified&expansions=author_id&exclude=replies&since_id=${state.get(
+  path: `/2/users/44196397/tweets?user.fields=profile_image_url,verified&tweet.fields=created_at&max_results=100&expansions=author_id&exclude=replies&since_id=${state.get(
     "latestTweetId",
   )}`,
   headers: {
@@ -98,13 +131,27 @@ const handleResponse = (wss, resp) => {
 
     if (response.data) {
       state.set("latestTweetId", response.meta.newest_id);
-      console.log("sending tweets: ", response.data);
       broadcastToAll(wss, JSON.stringify({ tweets: response.data }));
+      saveToDb(response.data);
     }
 
     if (response.includes && response.includes.users) {
-      console.log("sending users: ", response.includes.users);
       broadcastToAll(wss, JSON.stringify({ users: response.includes.users }));
+      response.includes.users.forEach((user) => {
+        TwitterUser.findOneAndUpdate(
+          { id: user.id },
+          user,
+          { upsert: true },
+          (err, doc) => {
+            if (err) {
+              console.error("Error inserting new User");
+              console.error(err);
+            }
+            console.log("Updated user:");
+            console.log(doc);
+          },
+        );
+      });
     }
   });
 };
