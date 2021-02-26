@@ -5,6 +5,7 @@ const tweetSchema = new mongoose.Schema({
   id: {
     type: String,
     required: true,
+    unique: true,
   },
   created_at: Date,
   text: String,
