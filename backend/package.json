@@ -4,14 +4,16 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "start": "nodemon server.js"
+    "start": "nodemon ./src/server.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^5.0.0",
+    "dayjs": "^1.10.4",
     "dotenv": "^8.2.0",
     "mongoose": "^5.11.16",
+    "node-fetch": "^2.6.1",
     "ws": "^7.4.2"
   },
   "devDependencies": {
