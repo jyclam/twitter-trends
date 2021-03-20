@@ -39,11 +39,13 @@ const Tweet = styled.div`
   }
 `;
 
-const TweetDiv = ({ authorId, timestamp, body }) => {
+const TweetDiv = ({ toggle, tweet }) => {
+  const { author_id: authorId, created_at: createdAt, text: body } = tweet;
+
   return (
-    <Tweet>
+    <Tweet onClick={toggle}>
       <p>{authorId}</p>
-      <p>{timestamp}</p>
+      <p>{createdAt}</p>
       <p>{body}</p>
     </Tweet>
   );

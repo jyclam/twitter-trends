@@ -5,7 +5,7 @@ import WebSocket from "isomorphic-ws";
 import { updateTweets, updateUsers } from "../reducers/twitterSlice";
 
 export const useStream = () => {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch((state) => state.twitter);
 
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:5000");
@@ -33,4 +33,5 @@ export const useStream = () => {
 
     return () => ws.close();
   }, []);
+  // TODO: handle ws error and reconnection
 };

@@ -1,7 +1,15 @@
 import { useSelector } from "react-redux";
+import styled from "styled-components";
 
 import { useStream } from "./hooks/useStream";
-import Tweets from "./components/Tweets";
+import Accordion from "./components/Accordion";
+
+const Main = styled.div`
+  display: flex;
+  flex-flow: column nowrap;
+  width: 100vw;
+  height: 100vh;
+`;
 
 function App() {
   useStream();
@@ -9,9 +17,9 @@ function App() {
   const twitterState = useSelector((state) => state.twitter);
 
   return (
-    <div className="App">
-      <Tweets tweets={twitterState.tweets} />
-    </div>
+    <Main>
+      <Accordion tweets={twitterState.tweets} />
+    </Main>
   );
 }
 
